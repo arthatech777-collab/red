@@ -2,7 +2,7 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
-const state = { look: "cinematic", aspect: "9:16", shots: 3, engines: [] };
+const state = { look: "cinematic", aspect: "9:16", shots: 5, engines: [] };
 
 // Rotating example pitches, in the languages our users actually write in.
 const PITCHES = [
@@ -82,6 +82,7 @@ function makeCard(sh, i) {
   $(".cam", el).textContent = (sh.camera || "").toUpperCase();
   $(".prompt", el).value = sh.prompt || "";
   $(".line", el).value = sh.line || "";
+  $(".motion", el).value = sh.motion || "";
   const eng = $(".engine", el);
   (state.engines.length ? state.engines : [{ id: "ltx", label: "Swift · LTX-Video", ready: true }])
     .forEach(e => { const o = new Option(e.label, e.id); o.disabled = !e.ready; eng.add(o); });
@@ -95,9 +96,11 @@ function makeCard(sh, i) {
       el.dataset.image = r.image_id;
       const img = $(".photo img", el); img.src = URL.createObjectURL(file.files[0]); img.hidden = false;
       $(".photo-btn", el).textContent = "Photo set";
+      showFrame(el, URL.createObjectURL(file.files[0]));
     } catch { $(".photo-btn", el).textContent = "Upload failed"; }
   };
   $(".roll", el).onclick = () => roll(el);
+  $(".frame", el).onclick = () => frame(el);
   $(".del", el).onclick = () => el.remove();
   return el;
 }
@@ -110,7 +113,8 @@ async function roll(el) {
   setCardState(el, "rolling", "queued");
   try {
     const { job_id } = await api("/api/render", { method: "POST", body: JSON.stringify({
-      prompt: $(".prompt", el).value, engine: $(".engine", el).value, aspect: state.aspect,
+      prompt: el.dataset.image ? ($(".motion", el).value || $(".prompt", el).value) : $(".prompt", el).value,
+      engine: el.dataset.image ? "wan" : $(".engine", el).value, aspect: state.aspect,
       seconds: Number($(".secs", el).value), image_id: el.dataset.image || null }) });
     const t0 = Date.now();
     for (;;) {
@@ -130,9 +134,45 @@ async function roll(el) {
   btn.disabled = false; btn.textContent = "Roll again";
 }
 
+async function poll(jobId, onTick) {
+  const t0 = Date.now();
+  for (;;) {
+    await new Promise(r => setTimeout(r, 2500));
+    const j = await api(`/api/render/${jobId}`);
+    onTick && onTick(j, Math.round((Date.now() - t0) / 1000));
+    if (j.state === "done") return j;
+    if (j.state === "failed") throw new Error(j.error || "Something went wrong.");
+  }
+}
+
+function showFrame(el, src) {
+  $(".placeholder", el).hidden = true;
+  $("video", el).hidden = true;
+  const k = $(".kf", el); k.src = src; k.hidden = false;
+}
+
+async function frame(el) {
+  const b = $(".frame", el); b.disabled = true;
+  $(".err", el).hidden = true;
+  setCardState(el, "rolling", "framing");
+  try {
+    const { job_id } = await api("/api/keyframe", { method: "POST",
+      body: JSON.stringify({ prompt: $(".prompt", el).value, aspect: state.aspect }) });
+    const j = await poll(job_id, (_, s) => setCardState(el, "rolling", `framing · ${s}s`));
+    el.dataset.image = j.image_id;
+    showFrame(el, j.image);
+    setCardState(el, "done", "framed");
+  } catch (e) {
+    setCardState(el, "failed", "no frame");
+    const er = $(".err", el); er.textContent = e.message; er.hidden = false;
+  }
+  b.disabled = false; b.textContent = "Reframe";
+}
+
 function finish(el, src) {
   setCardState(el, "done", "in the can");
   $(".placeholder", el).hidden = true;
+  $(".kf", el).hidden = true;
   const v = $("video", el); v.src = src; v.hidden = false; v.play().catch(() => {});
   const dl = $(".dl", el); dl.href = src; dl.hidden = false;
   addToReel({ src, caption: $(".prompt", el).value.slice(0, 80), at: Date.now() });
@@ -157,5 +197,40 @@ function drawReel() {
   });
 }
 $("#clearReel").onclick = () => { localStorage.removeItem(REEL_KEY); drawReel(); };
-$("#rollAll").onclick = async () => { for (const el of $$("#shots .card")) await roll(el); };
+$("#frameAll").onclick = async () => { for (const el of $$("#shots .card")) if (!el.dataset.image) await frame(el); };
+
+$("#makeFilm").onclick = async () => {
+  const cards = $$("#shots .card");
+  if (!cards.length) return;
+  const btn = $("#makeFilm"); btn.disabled = true;
+  const panel = $("#filmPanel"); panel.hidden = false;
+  const vid = $("#filmVideo"); vid.hidden = true; $("#filmWait").hidden = false; $("#filmWait").textContent = "Rolling…";
+  $("#filmDl").hidden = true; $("#filmNote").textContent = ""; $("#filmBar").style.width = "3%";
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  try {
+    const shots = cards.map(el => ({ prompt: $(".prompt", el).value, motion: $(".motion", el).value,
+      line: $(".line", el).value, image_id: el.dataset.image || null }));
+    const { job_id } = await api("/api/film", { method: "POST", body: JSON.stringify({
+      title: $("#title").textContent, language: $("#language").value, aspect: state.aspect,
+      seconds: 5, captions: $("#captions").checked, shots }) });
+    const j = await poll(job_id, (j, s) => {
+      $("#filmStage").textContent = j.stage || "Working";
+      const done = j.done_shots || 0;
+      $("#filmBar").style.width = `${Math.max(3, Math.round(100 * done / (shots.length + 0.5)))}%`;
+      $("#filmWait").textContent = `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+      (j.shots || []).forEach((r, i) => { if (r.image && cards[i] && !cards[i].dataset.image) showFrame(cards[i], r.image); });
+    });
+    $("#filmBar").style.width = "100%";
+    $("#filmStage").textContent = `${j.seconds}s film, ready`;
+    const stills = (j.shots || []).filter(r => r.mode === "still").length;
+    if (stills) $("#filmNote").textContent = `${stills} shot(s) used a slow push-in on the frame because free GPU time ran out. Try those again later.`;
+    $("#filmWait").hidden = true; vid.src = j.video; vid.hidden = false; vid.play().catch(() => {});
+    const dl = $("#filmDl"); dl.href = j.video; dl.hidden = false;
+    addToReel({ src: j.video, caption: `Film · ${$("#title").textContent}`, at: Date.now() });
+  } catch (e) {
+    $("#filmStage").textContent = "The cut didn't finish";
+    $("#filmNote").textContent = e.message;
+  }
+  btn.disabled = false; btn.textContent = "Make it again";
+};
 drawReel();

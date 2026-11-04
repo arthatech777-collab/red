@@ -127,3 +127,33 @@ def available():
          "ready": not (e.name == "kathaa" and not SelfHostedEngine.url)}
         for e in ENGINES.values()
     ]
+
+
+# ---------------------------------------------------------------------------
+# Keyframes: a sharp still for every shot (FLUX.1-schnell, open weights).
+# Animating a good still with Wan 2.2 looks far better than text-to-video.
+# ---------------------------------------------------------------------------
+FLUX_SPACE = os.getenv("KATHAA_FLUX_SPACE", "black-forest-labs/FLUX.1-schnell")
+KEY_SIZES = {"9:16": (576, 1024), "16:9": (1024, 576), "1:1": (768, 768)}  # (w, h)
+IMG_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(IMG_DIR, exist_ok=True)
+
+
+def keyframe(prompt: str, aspect: str = "9:16", seed: int | None = None) -> str:
+    w, h = KEY_SIZES.get(aspect, KEY_SIZES["9:16"])
+    c = _client(FLUX_SPACE)
+    img, _ = c.predict(
+        prompt=prompt + ", highly detailed, photographic, professional cinematography, sharp focus",
+        seed=float(seed or 0), randomize_seed=seed is None,
+        width=float(w), height=float(h), num_inference_steps=4.0, api_name="/infer",
+    )
+    src = img["path"] if isinstance(img, dict) else img
+    ext = os.path.splitext(src)[1] or ".webp"
+    dst = os.path.join(IMG_DIR, f"kf_{uuid.uuid4().hex[:12]}{ext}")
+    shutil.copy(src, dst)
+    return dst
+
+
+def animate(image_path: str, motion: str, seconds: float = 5.0) -> str:
+    """Wan 2.2 image-to-video. Returns a local mp4."""
+    return ENGINES["wan"].render({"image_path": image_path, "prompt": motion, "seconds": seconds})

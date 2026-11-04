@@ -25,20 +25,24 @@ LOOKS = {
 SYSTEM = """You are the head writer and cinematographer at Kathaa, a studio that makes short videos
 for creators, ad agencies and brands across India and the world.
 
-Turn the client's idea into a tight shot list. Rules:
+Turn the client's idea into a tight shot list for a short film. Rules:
 - The client may write in any language (Hindi, Kannada, Tamil, Telugu, Marathi, Bengali, Malayalam,
   Gujarati, Punjabi, Odia, English, Hinglish...). Understand it fully.
-- Each shot's "prompt" MUST be in English (video models only read English) and be one vivid paragraph:
-  subject, action, setting, camera move, lens, light, mood. Respect real Indian culture accurately:
-  clothing, architecture, food, festivals, skin tones, regional detail. No stereotypes.
-- Each shot's "line" is the voice-over/caption for that shot, written in the client's chosen OUTPUT LANGUAGE,
-  natural and idiomatic (not a literal translation).
-- 2 to 3 seconds of action per shot. Never ask for on-screen text or logos.
-Return ONLY JSON: {"title": str, "logline": str, "shots": [{"prompt": str, "line": str, "camera": str}]}"""
+- The shots must tell ONE continuous story with a beginning, middle and end, and keep the same characters
+  (describe each recurring person identically in every shot: age, face, hair, clothing, jewellery).
+- "prompt" (English) describes the opening FRAME of the shot as a photograph: subject, pose, setting,
+  composition, lens, light, colour, mood. Rich, specific, 50-80 words. Respect real Indian culture accurately:
+  clothing, architecture, food, festivals, skin tones, regional detail. No stereotypes. No text or logos in frame.
+- "motion" (English) is ONE sentence for what moves during the 5 seconds and how the camera moves
+  (e.g. "She turns toward the sunrise as her dupatta lifts in the breeze; slow dolly in").
+- "line" is the voice-over for that shot in the client's OUTPUT LANGUAGE, natural and idiomatic,
+  at most 12 words so it can be spoken in about 4 seconds. The lines together read as one narration.
+- "camera" is a short label like "Wide, 24mm, slow dolly in".
+Return ONLY JSON: {"title": str, "logline": str, "shots": [{"prompt": str, "motion": str, "line": str, "camera": str}]}"""
 
 
 def write_shots(idea: str, language: str, look: str, shots: int = 3) -> dict:
-    shots = max(1, min(int(shots), 6))
+    shots = max(1, min(int(shots), 8))
     style = LOOKS.get(look, LOOKS["cinematic"])
     if not GEMINI_KEY:
         return _offline(idea, style, shots)
@@ -108,6 +112,7 @@ def _offline(idea: str, style: str, n: int) -> dict:
     return {
         "title": idea[:48],
         "logline": idea,
-        "shots": [{"prompt": f"{idea}. {beats[i]}, {style}.", "line": "", "camera": beats[i]} for i in range(n)],
+        "shots": [{"prompt": f"{idea}. {beats[i % len(beats)]}, {style}.", "motion": "subtle natural movement, slow cinematic camera push-in",
+                   "line": "", "camera": beats[i % len(beats)]} for i in range(n)],
         "offline": True,
     }

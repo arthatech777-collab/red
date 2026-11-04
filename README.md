@@ -10,7 +10,8 @@ pinned: false
 
 # Kathaa (कथा): stories into film
 
-Kathaa turns a one-line idea, written in any Indian language or English, into a shot list and then into video clips.
+Kathaa turns a one-line idea, written in any Indian language or English, into a finished short film:
+**Gemini writes the story, FLUX frames every shot, Wan 2.2 animates each frame, a neural voice narrates in your language, and ffmpeg cuts it all into one 30 to 60 second film with captions.**
 It's built for creators, ad agencies, and brands making regional and international content.
 
 ## How it works (all free)
@@ -18,6 +19,9 @@ It's built for creators, ad agencies, and brands making regional and internation
 | Part | What does it | Cost |
 |---|---|---|
 | Writer's room | Gemini Flash (free tier) reads Hindi/Kannada/Tamil/Telugu/… and writes English shot prompts plus voice-over lines in your chosen language | Free |
+| Keyframes | FLUX.1-schnell (open weights) on ZeroGPU: a sharp still for every shot | Free |
+| Voice-over | Edge neural voices (Kannada, Hindi, Tamil, Telugu, Malayalam, Marathi, Bengali, Gujarati, English…) with gTTS fallback | Free |
+| Editor | ffmpeg: timing to voice, captions with proper Indic shaping, fades, final cut | Free |
 | Swift engine | LTX-Video (open weights) on Hugging Face ZeroGPU: text-to-video and photo-to-video | Free (daily GPU minutes) |
 | Rich engine | Wan 2.2 (open weights) on ZeroGPU: photo-to-video, higher quality | Free (daily GPU minutes) |
 | Kathaa Native | Your own fine-tuned model on your own GPU (switch on later with `KATHAA_SELF_URL`) | Later |

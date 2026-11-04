@@ -67,7 +67,7 @@
       <fieldset>
         <legend>Shots</legend>
         <div class="stepper">
-          <button id="minus" aria-label="fewer">−</button><output id="shotsN">3</output><button id="plus" aria-label="more">+</button>
+          <button id="minus" aria-label="fewer">−</button><output id="shotsN">5</output><button id="plus" aria-label="more">+</button>
         </div>
       </fieldset>
     </div>
@@ -86,7 +86,21 @@
         <h2 id="title"></h2>
         <p id="logline" class="logline"></p>
       </div>
-      <button id="rollAll" class="btn primary">Roll every shot</button>
+      <div class="board-actions">
+        <label class="toggle"><input type="checkbox" id="captions" checked> Captions</label>
+        <button id="frameAll" class="btn ghost">Frame every shot</button>
+        <button id="makeFilm" class="btn primary">Make the film</button>
+      </div>
+    </div>
+    <div id="filmPanel" class="film" hidden>
+      <div class="film-meta">
+        <p class="kicker">The cut</p>
+        <p id="filmStage" class="film-stage">In the queue</p>
+        <div class="bar"><i id="filmBar"></i></div>
+        <p id="filmNote" class="note"></p>
+        <a id="filmDl" class="btn small" hidden download>Download the film</a>
+      </div>
+      <div class="film-screen"><video id="filmVideo" controls playsinline hidden></video><span id="filmWait">Rolling…</span></div>
     </div>
     <ol id="shots" class="shots"></ol>
   </section>
@@ -104,7 +118,7 @@
 </main>
 
 <footer class="foot">
-  <p>Kathaa runs on open-weight video models (LTX-Video, Wan 2.2) and Gemini as the writer. Made in Hubballi.</p>
+  <p>Kathaa frames every shot with FLUX, animates it with Wan 2.2, voices it, and cuts the film. Open models, Gemini as the writer. Made in Hubballi.</p>
 </footer>
 
 <template id="shotTpl">
@@ -116,8 +130,9 @@
     </div>
     <div class="card-body">
       <div class="fields">
-        <label>Picture<textarea class="prompt" rows="4"></textarea></label>
-        <label>Line<input class="line" type="text" placeholder="Voice-over or caption (optional)"></label>
+        <label>Frame<textarea class="prompt" rows="4"></textarea></label>
+        <label>Motion<input class="motion" type="text" placeholder="What moves, and how the camera moves"></label>
+        <label>Voice-over<input class="line" type="text" placeholder="What the narrator says (optional)"></label>
         <div class="row">
           <label class="photo">
             <input type="file" accept="image/png,image/jpeg,image/webp" hidden>
@@ -125,17 +140,19 @@
             <img alt="" hidden>
           </label>
           <select class="engine"></select>
-          <select class="secs"><option value="2">2s</option><option value="3" selected>3s</option><option value="4">4s</option><option value="5">5s</option></select>
+          <select class="secs"><option value="3">3s</option><option value="4">4s</option><option value="5" selected>5s</option></select>
         </div>
       </div>
       <div class="screen">
-        <div class="placeholder"><span>Not shot yet</span></div>
+        <div class="placeholder"><span>No frame yet</span></div>
+        <img class="kf" alt="" hidden>
         <video controls playsinline loop hidden></video>
         <div class="err" hidden></div>
       </div>
     </div>
     <div class="card-foot">
-      <button class="btn small roll">Roll</button>
+      <button class="btn ghost small frame">Frame</button>
+      <button class="btn small roll">Animate</button>
       <a class="btn ghost small dl" hidden download>Download</a>
       <button class="btn ghost small del" aria-label="remove shot">Remove</button>
     </div>
