@@ -9,7 +9,8 @@ import os
 import httpx
 
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+PREFERRED = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest"]
 URL = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
 
 LOOKS = {
@@ -49,13 +50,19 @@ def write_shots(idea: str, language: str, look: str, shots: int = 3) -> dict:
         "contents": [{"role": "user", "parts": [{"text": user}]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.9},
     }
-    r = None
+    r, last_err = None, None
     for model in _models():
-        r = httpx.post(URL.format(m=model), params={"key": GEMINI_KEY}, json=body, timeout=60)
+        try:
+            r = httpx.post(URL.format(m=model), params={"key": GEMINI_KEY}, json=body, timeout=45)
+        except httpx.TimeoutException as e:
+            last_err = e
+            continue  # busy model, try the next one
         if r.status_code == 200:
             break
-        if r.status_code not in (400, 404, 429):  # bad key etc. – no point trying other models
+        if r.status_code in (401, 403):  # bad key: other models won't help
             break
+    if r is None:
+        raise RuntimeError(f"Gemini timed out ({last_err})")
     if r.status_code != 200:
         try:
             msg = r.json().get("error", {}).get("message", "")
@@ -87,7 +94,10 @@ def _models() -> list[str]:
     except Exception:
         pass
     found.sort(key=lambda n: ("lite" in n, "preview" in n or "exp" in n, n), reverse=False)
-    order = [GEMINI_MODEL] + [n for n in found if n != GEMINI_MODEL]
+    order = []
+    for n in [GEMINI_MODEL] + PREFERRED + found:
+        if n not in order:
+            order.append(n)
     _MODEL_CACHE.extend(order[:6])
     return _MODEL_CACHE
 

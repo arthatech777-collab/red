@@ -11,4 +11,4 @@ services:
       - key: HF_TOKEN
         sync: false
       - key: GEMINI_MODEL
-        value: gemini-flash-latest
+        value: gemini-3.6-flash
