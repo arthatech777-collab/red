@@ -49,12 +49,47 @@ def write_shots(idea: str, language: str, look: str, shots: int = 3) -> dict:
         "contents": [{"role": "user", "parts": [{"text": user}]}],
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.9},
     }
-    r = httpx.post(URL.format(m=GEMINI_MODEL), params={"key": GEMINI_KEY}, json=body, timeout=60)
-    r.raise_for_status()
+    r = None
+    for model in _models():
+        r = httpx.post(URL.format(m=model), params={"key": GEMINI_KEY}, json=body, timeout=60)
+        if r.status_code == 200:
+            break
+        if r.status_code not in (400, 404, 429):  # bad key etc. – no point trying other models
+            break
+    if r.status_code != 200:
+        try:
+            msg = r.json().get("error", {}).get("message", "")
+        except Exception:
+            msg = r.text
+        raise RuntimeError(f"Gemini {r.status_code}: {msg[:200]}")
     text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
     data = json.loads(text)
     data["shots"] = data.get("shots", [])[:shots]
     return data
+
+
+_MODEL_CACHE: list[str] = []
+
+
+def _models() -> list[str]:
+    """Configured model first, then whatever free Flash models this key can see."""
+    if _MODEL_CACHE:
+        return _MODEL_CACHE
+    found = []
+    try:
+        r = httpx.get("https://generativelanguage.googleapis.com/v1beta/models",
+                      params={"key": GEMINI_KEY, "pageSize": 200}, timeout=20)
+        for m in r.json().get("models", []):
+            name = m["name"].split("/", 1)[-1]
+            if ("generateContent" in m.get("supportedGenerationMethods", [])
+                    and "flash" in name and not any(x in name for x in ("image", "tts", "live", "omni", "audio"))):
+                found.append(name)
+    except Exception:
+        pass
+    found.sort(key=lambda n: ("lite" in n, "preview" in n or "exp" in n, n), reverse=False)
+    order = [GEMINI_MODEL] + [n for n in found if n != GEMINI_MODEL]
+    _MODEL_CACHE.extend(order[:6])
+    return _MODEL_CACHE
 
 
 def _offline(idea: str, style: str, n: int) -> dict:

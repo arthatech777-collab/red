@@ -67,7 +67,7 @@ def story(body: StoryIn):
         return storyteller.write_shots(body.idea, body.language, body.look, body.shots)
     except Exception as e:  # keep the desk usable even if the writer hiccups
         out = storyteller._offline(body.idea, storyteller.LOOKS.get(body.look, ""), body.shots)
-        out["warning"] = f"Writer unavailable ({e.__class__.__name__}); used a plain shot list."
+        out["warning"] = f"Writer unavailable ({e}); used a plain shot list."
         return out
 
 
