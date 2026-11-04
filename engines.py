@@ -156,12 +156,21 @@ def keyframe(prompt: str, aspect: str = "9:16", seed: int | None = None) -> str:
     import random, subprocess, urllib.parse
     import httpx
     hh = int(h * 1.06)  # render taller, then crop off the free tier's corner badge
-    r = httpx.get("https://image.pollinations.ai/prompt/" + urllib.parse.quote(full[:1500]),
-                  params={"width": w, "height": hh, "model": "flux", "nologo": "true",
-                          "seed": seed if seed is not None else random.randint(1, 10**6)},
-                  timeout=120, follow_redirects=True)
-    if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image"):
-        raise RuntimeError(f"No frame: {flux_err}")
+    r = None
+    for attempt in range(4):  # the free tier allows one image at a time; wait and retry
+        try:
+            r = httpx.get("https://image.pollinations.ai/prompt/" + urllib.parse.quote(full[:1500]),
+                          params={"width": w, "height": hh, "model": "flux", "nologo": "true",
+                                  "seed": seed if seed is not None else random.randint(1, 10**6)},
+                          timeout=120, follow_redirects=True)
+            if r.status_code == 200 and r.headers.get("content-type", "").startswith("image"):
+                break
+        except Exception:
+            r = None
+        import time
+        time.sleep(6 + attempt * 6)
+    if r is None or r.status_code != 200 or not r.headers.get("content-type", "").startswith("image"):
+        raise RuntimeError(f"No frame (image service busy): {getattr(r, 'status_code', 'timeout')}")
     raw = os.path.join(IMG_DIR, f"raw_{uuid.uuid4().hex[:8]}.jpg")
     with open(raw, "wb") as f:
         f.write(r.content)

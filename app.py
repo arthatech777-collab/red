@@ -183,7 +183,11 @@ def _film_job(job_id: str, req: dict):
                 img = os.path.join(UPLOADS, os.path.basename(sh["image_id"])) if sh.get("image_id") else None
                 if not img or not os.path.exists(img):
                     job["stage"] = f"Framing shot {i+1} of {n}"
-                    img = engines.keyframe(sh["prompt"], aspect)
+                    try:
+                        img = engines.keyframe(sh["prompt"], aspect)
+                    except Exception as e:
+                        rec["mode"], rec["note"] = "skipped", _gpu_msg(e)
+                        continue  # keep the film going without this shot
                 rec["image"] = f"/uploads/{os.path.basename(img)}"
                 # 2. animate (falls back to a slow push-in if GPU time runs out)
                 job["stage"] = f"Animating shot {i+1} of {n}"
@@ -204,6 +208,8 @@ def _film_job(job_id: str, req: dict):
                 job["stage"] = f"Editing shot {i+1} of {n}"
                 segments.append(film.segment(clip, vo, sh.get("line", "") if req["captions"] else "", aspect))
                 job["done_shots"] = i + 1
+            if not segments:
+                raise RuntimeError("No shot could be framed right now. Try again in a few minutes.")
             job["stage"] = "Final cut"
             out = film.assemble(segments)
             job.update(state="done", stage="Ready", video=f"/outputs/{os.path.basename(out)}",
