@@ -127,3 +127,18 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE, "static")), name="
 @app.get("/")
 def home():
     return FileResponse(os.path.join(BASE, "static", "index.html"))
+
+
+@app.get("/api/writer-check")
+def writer_check():
+    """Diagnostics: which Gemini models the key sees and how a tiny call behaves."""
+    import httpx as _h
+    out = {"models": storyteller._models()}
+    t = time.time()
+    try:
+        r = _h.post(storyteller.URL.format(m=out["models"][0]), params={"key": storyteller.GEMINI_KEY},
+                    json={"contents": [{"parts": [{"text": "Say ok"}]}]}, timeout=60)
+        out["first"] = {"status": r.status_code, "secs": round(time.time() - t, 1), "body": r.text[:300]}
+    except Exception as e:
+        out["first"] = {"error": str(e), "secs": round(time.time() - t, 1)}
+    return out
