@@ -140,17 +140,34 @@ os.makedirs(IMG_DIR, exist_ok=True)
 
 
 def keyframe(prompt: str, aspect: str = "9:16", seed: int | None = None) -> str:
+    """FLUX.1-schnell on ZeroGPU first (best quality, ~3s of GPU); free Pollinations FLUX if GPU time is out."""
     w, h = KEY_SIZES.get(aspect, KEY_SIZES["9:16"])
-    c = _client(FLUX_SPACE)
-    img, _ = c.predict(
-        prompt=prompt + ", highly detailed, photographic, professional cinematography, sharp focus",
-        seed=float(seed or 0), randomize_seed=seed is None,
-        width=float(w), height=float(h), num_inference_steps=4.0, api_name="/infer",
-    )
-    src = img["path"] if isinstance(img, dict) else img
-    ext = os.path.splitext(src)[1] or ".webp"
-    dst = os.path.join(IMG_DIR, f"kf_{uuid.uuid4().hex[:12]}{ext}")
-    shutil.copy(src, dst)
+    full = prompt + ", highly detailed, photographic, professional cinematography, sharp focus"
+    try:
+        c = _client(FLUX_SPACE)
+        img, _ = c.predict(prompt=full, seed=float(seed or 0), randomize_seed=seed is None,
+                           width=float(w), height=float(h), num_inference_steps=4.0, api_name="/infer")
+        src = img["path"] if isinstance(img, dict) else img
+        dst = os.path.join(IMG_DIR, f"kf_{uuid.uuid4().hex[:12]}{os.path.splitext(src)[1] or '.webp'}")
+        shutil.copy(src, dst)
+        return dst
+    except Exception as e:
+        flux_err = e
+    import random, subprocess, urllib.parse
+    import httpx
+    hh = int(h * 1.06)  # render taller, then crop off the free tier's corner badge
+    r = httpx.get("https://image.pollinations.ai/prompt/" + urllib.parse.quote(full[:1500]),
+                  params={"width": w, "height": hh, "model": "flux", "nologo": "true",
+                          "seed": seed if seed is not None else random.randint(1, 10**6)},
+                  timeout=120, follow_redirects=True)
+    if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image"):
+        raise RuntimeError(f"No frame: {flux_err}")
+    raw = os.path.join(IMG_DIR, f"raw_{uuid.uuid4().hex[:8]}.jpg")
+    with open(raw, "wb") as f:
+        f.write(r.content)
+    dst = os.path.join(IMG_DIR, f"kf_{uuid.uuid4().hex[:12]}.jpg")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", raw, "-vf", f"crop=iw:ih-{hh-h}:0:0", "-q:v", "2", dst], check=True)
+    os.remove(raw)
     return dst
 
 

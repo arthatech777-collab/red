@@ -4,6 +4,7 @@ into a shot list that video models understand. Runs on Gemini's free tier.
 If no key is set it falls back to a simple offline template so the app still works.
 """
 import json
+import time
 import os
 
 import httpx
@@ -55,16 +56,23 @@ def write_shots(idea: str, language: str, look: str, shots: int = 3) -> dict:
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.9},
     }
     r, last_err = None, None
-    for model in _models():
-        try:
-            r = httpx.post(URL.format(m=model), params={"key": GEMINI_KEY}, json=body, timeout=45)
-        except httpx.TimeoutException as e:
-            last_err = e
-            continue  # busy model, try the next one
-        if r.status_code == 200:
+    for attempt in range(2):  # free models spike; one more lap after a pause
+        for model in _models():
+            for cfg in ({"thinkingConfig": {"thinkingLevel": "low"}}, {}):
+                b = dict(body, generationConfig={**body["generationConfig"], **cfg})
+                try:
+                    r = httpx.post(URL.format(m=model), params={"key": GEMINI_KEY}, json=b, timeout=35)
+                except httpx.TimeoutException as e:
+                    last_err, r = e, None
+                    break  # busy model, next one
+                if r.status_code == 400 and cfg:
+                    continue  # model doesn't take thinkingLevel; retry plain
+                break
+            if r is not None and r.status_code in (200, 401, 403):
+                break
+        if r is not None and r.status_code in (200, 401, 403):
             break
-        if r.status_code in (401, 403):  # bad key: other models won't help
-            break
+        time.sleep(3)
     if r is None:
         raise RuntimeError(f"Gemini timed out ({last_err})")
     if r.status_code != 200:
@@ -97,12 +105,13 @@ def _models() -> list[str]:
                 found.append(name)
     except Exception:
         pass
-    found.sort(key=lambda n: ("lite" in n, "preview" in n or "exp" in n, n), reverse=False)
+    full = sorted([n for n in found if "lite" not in n], key=lambda n: ("preview" in n or "exp" in n, n))
+    lite = sorted([n for n in found if "lite" in n], key=lambda n: ("preview" in n or "exp" in n, n))
     order = []
-    for n in [GEMINI_MODEL] + PREFERRED + found:
+    for n in [GEMINI_MODEL] + PREFERRED[:2] + lite[:2] + PREFERRED[2:] + full + lite[2:]:
         if n not in order:
             order.append(n)
-    _MODEL_CACHE.extend(order[:6])
+    _MODEL_CACHE.extend(order[:8])
     return _MODEL_CACHE
 
 
