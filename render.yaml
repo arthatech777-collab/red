@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: kathaa
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /api/status
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: HF_TOKEN
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-flash-latest

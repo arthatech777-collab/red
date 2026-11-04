@@ -21,7 +21,7 @@ It's built for creators, ad agencies, and brands making regional and internation
 | Swift engine | LTX-Video (open weights) on Hugging Face ZeroGPU: text-to-video and photo-to-video | Free (daily GPU minutes) |
 | Rich engine | Wan 2.2 (open weights) on ZeroGPU: photo-to-video, higher quality | Free (daily GPU minutes) |
 | Kathaa Native | Your own fine-tuned model on your own GPU (switch on later with `KATHAA_SELF_URL`) | Later |
-| Hosting | Hugging Face Space (Docker, CPU basic) | Free |
+| Hosting | Render free web service (Docker) | Free |
 
 ## 1. Get your two free keys (5 minutes)
 1. **Gemini key**: https://aistudio.google.com/apikey, then Create API key.
@@ -38,11 +38,14 @@ uvicorn app:app --port 7860
 ```
 Open http://localhost:7860
 
-## 3. Put it online free (Hugging Face Space)
-1. Go to https://huggingface.co/new-space. Name it `kathaa`, SDK **Docker**, hardware **CPU basic (free)**.
-2. Upload every file in this folder (or `git push` to the Space repo).
-3. In the Space, go to Settings, then Variables and secrets. Add secrets `GEMINI_API_KEY` and `HF_TOKEN`.
-4. Wait for the build. Your studio is live at `https://huggingface.co/spaces/<you>/kathaa`.
+## 3. Put it online free (Render)
+Hugging Face now requires PRO for Docker Spaces, so Kathaa deploys free on Render (no card needed).
+1. Open https://render.com/deploy?repo=https://github.com/arthatech777-collab/red
+2. Sign in with GitHub and allow Render to see the `red` repo.
+3. Paste your `GEMINI_API_KEY` and `HF_TOKEN` when asked, then click **Deploy Blueprint**.
+4. In about 5 minutes your studio is live at `https://kathaa-xxxx.onrender.com`.
+
+Free Render instances sleep after 15 minutes idle (the first visit then takes about a minute to wake), and generated clips are cleared when the instance restarts. Download the ones you like.
 
 ## Free-tier limits
 - ZeroGPU gives each free account a few minutes of GPU per day, enough for roughly 10 to 30 short clips. A Hugging Face PRO account ($9/mo) gives much more, when you're ready.
